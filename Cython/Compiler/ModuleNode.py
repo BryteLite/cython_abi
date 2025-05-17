@@ -34,6 +34,34 @@ from .Code import UtilityCode, IncludeCode, TempitaUtilityCode
 from .StringEncoding import EncodedString, encoded_string_or_bytes_literal
 from .Pythran import has_np_pythran
 
+# === Patch: Enhanced ABI Verification for Cython Shared Types ===
+
+def verify_cached_type(cached_type, name, expected_basicsize):
+    #
+    #Enhanced version of the internal type verification to optionally
+    #warn (instead of erroring) when mismatch is detected.
+    #
+    import sys
+    from .Errors import warning
+
+    try:
+        actual_size = getattr(cached_type, '__basicsize__', None)
+        if actual_size is None and hasattr(cached_type, '__sizeof__'):
+            actual_size = cached_type.__sizeof__()
+
+        if actual_size != expected_basicsize:
+            msg = (f"[Cython ABI Warning] Shared type '{name}' has size mismatch. "
+                   f"Expected: {expected_basicsize}, got: {actual_size}. "
+                   f"Recompile suggested.")
+            warning(pos=None, message=msg, level=1)
+            if sys.flags.dev_mode:
+                print(msg, file=sys.stderr)
+            return False
+    except Exception as e:
+        warning(pos=None, message=f"ABI check failed for type '{name}': {e}", level=1)
+        return False
+    return True
+
 
 def replace_suffix_encoded(path, newsuf):
     # calls replace suffix and returns a EncodedString or BytesLiteral with the encoding set
